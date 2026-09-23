@@ -1,0 +1,310 @@
+import time
+from pathlib import Path
+import numpy as np
+
+
+def Main(filename: str = "./videos_worth_spreading.in"):
+    candidates = [
+        Path("instances") / filename,
+        Path(filename),
+    ]
+
+    for path in candidates:
+        if path.exists():
+            print(f"Lecture du fichier : {path}")
+            with path.open("r", encoding="utf-8") as f:
+                first_line = f.readline().strip()
+                if not first_line:
+                    raise ValueError(f"Le fichier {path} est vide.")
+
+                values = list(map(int, first_line.split()))
+                if len(values) < 5:
+                    raise ValueError(f"Le fichier {path} ne contient pas assez d'entiers sur la première ligne.")
+
+                V, E, R, C, X = values[:5]
+
+                S = list(map(int, f.readline().strip().split()))
+                if len(S) < V:
+                    raise ValueError(f"Le fichier {path} ne contient pas assez de tailles de vidéos.")
+
+                endpoints = []
+                for endpoint_id in range(E):
+                    line = f.readline().strip().split()
+                    if len(line) < 2:
+                        raise ValueError(f"Endpoint {endpoint_id}: ligne incomplète.")
+
+                    LD, K = map(int, line)
+                    cache_connections = {}
+                    for _ in range(K):
+                        c_line = f.readline().strip().split()
+                        if len(c_line) < 2:
+                            raise ValueError(f"Endpoint {endpoint_id}: ligne de cache incomplète.")
+                        c, Lc = map(int, c_line)
+                        cache_connections[c] = Lc
+                    cache_connections = sorted(cache_connections.items(), key=lambda item: item[1])
+
+                    endpoints.append({
+                        "id": endpoint_id,
+                        "data_center_latency": LD,
+                        "cache_connections": cache_connections,
+                    })
+
+                Requests = {}
+                for _ in range(R):
+                    line = f.readline().strip().split()
+                    if len(line) < 3:
+                        raise ValueError("Ligne de requête incomplète.")
+                    v, e, n = map(int, line)
+                    Requests.setdefault(e, []).append({
+                        "video_id": v,
+                        "num_requests": n
+                    })
+
+                return {
+                    "endpoints": endpoints,
+                    "requests": Requests,
+                    "V": V,
+                    "E": E,
+                    "R": R,
+                    "C": C,
+                    "X": X,
+                    "S": S
+                }
+
+    raise FileNotFoundError(f"Fichier introuvable dans les chemins spécifiés : {filename}")
+
+
+
+def PrecomputeStructures(data):
+    E, V = data["E"], data["V"]
+
+    video_ids_arr = [None] * E
+    counts_arr = [None] * E
+    best_latency_arr = [None] * E
+    video_id_to_idx = [None] * E
+    LD_arr = [0.0] * E
+
+    for endpoint_id in range(E):
+        requests = data["requests"].get(endpoint_id, [])
+        LD = data["endpoints"][endpoint_id]["data_center_latency"]
+        LD_arr[endpoint_id] = float(LD)
+
+        if requests:
+            v_ids = np.fromiter((r["video_id"] for r in requests), dtype=np.int64, count=len(requests))
+            counts = np.fromiter((r["num_requests"] for r in requests), dtype=np.float64, count=len(requests))
+        else:
+            v_ids = np.empty(0, dtype=np.int64)
+            counts = np.empty(0, dtype=np.float64)
+
+        video_ids_arr[endpoint_id] = v_ids
+        counts_arr[endpoint_id] = counts
+        best_latency_arr[endpoint_id] = np.full(v_ids.shape[0], LD, dtype=np.float64)
+        video_id_to_idx[endpoint_id] = {int(v): i for i, v in enumerate(v_ids)}   # index des videos dans les tableaux du dessus
+
+    reverse_conn = {c: [] for c in range(data["C"])}
+    for endpoint in data["endpoints"]:
+        for cache_id, latency in endpoint["cache_connections"]:
+            reverse_conn[cache_id].append((endpoint["id"], float(latency)))
+
+    providers = [dict() for _ in range(E)]  # providers[e][idx] = [(cache_id, latency), ...]
+
+    return {
+        "video_ids_arr": video_ids_arr,
+        "counts_arr": counts_arr,
+        "best_latency_arr": best_latency_arr,
+        "video_id_to_idx": video_id_to_idx,
+        "LD_arr": LD_arr,
+        "reverse_conn": reverse_conn,
+        "providers": providers,
+    }
+
+
+def AddVideo(video_id, cache_id, structures):
+    """Place video_id dans cache_id. Met à jour l'état et renvoie le gain de score (ms)."""
+    delta = 0.0
+    for endpoint_id, Lc in structures["reverse_conn"][cache_id]:
+        idx = structures["video_id_to_idx"][endpoint_id].get(video_id)
+        if idx is None:
+            continue  # cet endpoint ne demande pas cette vidéo
+
+        providers_e = structures["providers"][endpoint_id]
+        providers_e.setdefault(idx, []).append((cache_id, Lc))
+
+        old_best = structures["best_latency_arr"][endpoint_id][idx]
+        if Lc < old_best:
+            count = structures["counts_arr"][endpoint_id][idx]  # nb de fois où la vidéo est demandée
+            delta += count * (old_best - Lc)
+            structures["best_latency_arr"][endpoint_id][idx] = Lc
+    return delta
+
+
+def RemoveVideo(video_id, cache_id, structures):
+    """Retire video_id de cache_id. Recalcule correctement la nouvelle
+    meilleure latence pour les endpoints affectés, et renvoie la variation de score (ms, normalement <= 0)."""
+    delta = 0.0
+    for endpoint_id, Lc in structures["reverse_conn"][cache_id]:
+        idx = structures["video_id_to_idx"][endpoint_id].get(video_id)
+        if idx is None:
+            continue
+
+        providers_e = structures["providers"][endpoint_id]    # paires (cache, latence) associés aux vidéos d'un endpoint
+        lst = providers_e.get(idx)
+        if not lst:
+            continue
+        if (cache_id, Lc) in lst:
+            lst.remove((cache_id, Lc))
+
+        old_best = structures["best_latency_arr"][endpoint_id][idx]
+        if Lc == old_best:
+            # ce cache fournissait la meilleure latence actuelle : il faut
+            # recalculer la nouvelle meilleure option restante.
+            if lst:
+                new_best = min(latency for (_c, latency) in lst)
+            else:
+                new_best = structures["LD_arr"][endpoint_id]
+            if new_best > old_best:
+                count = structures["counts_arr"][endpoint_id][idx]
+                delta -= count * (new_best - old_best)
+                structures["best_latency_arr"][endpoint_id][idx] = new_best
+
+        if not lst:
+            providers_e.pop(idx, None)
+    return delta
+
+
+def ComputeLocalCandidates(cache_id, structures, V):
+    """Valeur marginale actuelle de chaque vidéo candidate pour ce cache."""
+    local_value = np.zeros(V, dtype=np.float64)
+    for endpoint_id, Lc in structures["reverse_conn"][cache_id]:
+        v_ids = structures["video_ids_arr"][endpoint_id]
+        if v_ids.size == 0:
+            continue
+        best = structures["best_latency_arr"][endpoint_id]
+        marginal_gain = np.maximum(0.0, best - Lc) * structures["counts_arr"][endpoint_id]
+        local_value[v_ids] += marginal_gain
+
+    candidate_videos = np.nonzero(local_value)[0]
+    return candidate_videos, local_value[candidate_videos]
+
+
+def ReoptimizeCache(cache_id, data, structures, S_np, V, output):
+    """
+    Réoptimise ENTIÈREMENT le contenu d'un cache, en tenant compte de
+    l'état ACTUEL (final) de tous les autres caches
+    """
+    X = data["X"]
+    old_videos = list(output[cache_id])
+
+    total_delta = 0.0
+    for v in old_videos:
+        total_delta += RemoveVideo(v, cache_id, structures)
+
+    candidate_videos, values = ComputeLocalCandidates(cache_id, structures, V)
+    new_videos = []
+    if candidate_videos.size > 0:
+        sizes = S_np[candidate_videos]
+        ratios = values / sizes
+        order = np.argsort(-ratios)
+        capacity = X
+        for idx in order:
+            v = int(candidate_videos[idx])
+            size = data["S"][v]
+            if size <= capacity:
+                capacity -= size
+                total_delta += AddVideo(v, cache_id, structures)
+                new_videos.append(v)
+
+    if total_delta < -1e-6:
+        # Sécurité anti-régression : on annule et on restaure l'ancien contenu.
+        for v in new_videos:
+            RemoveVideo(v, cache_id, structures)
+        for v in old_videos:
+            AddVideo(v, cache_id, structures)
+        output[cache_id] = set(old_videos)
+        return 0.0
+
+    output[cache_id] = set(new_videos)
+    return max(total_delta, 0.0)
+
+
+def LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True):
+    """
+    à chaque round, on réoptimise chaque cache,
+    un par un, en tenant compte de l'état réel (final) des autres caches.
+    On s'arrête si le score n'augmente plus (convergence) ou si le budget
+    de temps est dépassé.
+    """
+    V, C = data["V"], data["C"]
+    S_np = np.array(data["S"], dtype=np.float64)
+
+    structures = PrecomputeStructures(data)
+    output = {c: set() for c in range(C)}
+
+    start = time.time()
+    total_gain = 0.0
+
+    for round_idx in range(1, max_rounds + 1):
+        round_gain = 0.0
+        for cache_id in range(C):
+            round_gain += ReoptimizeCache(cache_id, data, structures, S_np, V, output)
+
+            if time_budget_seconds is not None and (time.time() - start) > time_budget_seconds:
+                if verbose:
+                    print(f"Budget de temps atteint pendant le round {round_idx} (cache {cache_id}).")
+                return output
+
+        total_gain += round_gain
+        if verbose:
+            elapsed = time.time() - start
+            print(f"Round {round_idx}: gain = {round_gain:,.0f} ms cumulés  (t = {elapsed:.1f}s)")
+
+        if round_gain <= 1e-6:
+            if verbose:
+                print("Convergence atteinte : plus aucune amélioration possible.")
+            break
+
+    return output
+
+def FinalScore(data, output):
+    endpoints_by_id = data["endpoints"]
+    chrono = 0
+    total_requests = 0
+
+    for endpoint_id, requests in data["requests"].items():
+        endpoint = endpoints_by_id[endpoint_id]
+        LD = endpoint["data_center_latency"]
+        for req in requests:
+            video_id = req["video_id"]
+            num_requests = req["num_requests"]
+            total_requests += num_requests
+
+            best_latency = LD
+            for cache_id, latency in endpoint["cache_connections"]:
+                if video_id in output[cache_id]:
+                    best_latency = latency
+                    break
+
+            chrono += num_requests * (LD - best_latency)
+
+    score = (chrono * 1000) // total_requests if total_requests > 0 else 0
+    return chrono, score
+
+
+if __name__ == "__main__":
+    data = Main()
+
+    output = LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True)
+
+    output_lists = {
+        cache_id: list(videos)
+        for cache_id, videos in output.items()
+        if videos
+    }
+
+    print(len(output_lists))
+    for c_id, videos in output_lists.items():
+        print(c_id, *videos)
+
+    chrono, score = FinalScore(data, output)
+    print(f"Chrono (gain total, ms) : {chrono}")
+    print(f"Score (gain moyen, µs)  : {score}")
