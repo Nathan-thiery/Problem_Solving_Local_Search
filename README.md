@@ -1,5 +1,9 @@
 # Problem_Solving_Local_Search
 
+## Pré-Requis d'environnement 
+> sudo apt install python3-numpy
+
+
 ## TODO 
 
 ### 1) Initialiser les caches du Local Search sur un Greedy

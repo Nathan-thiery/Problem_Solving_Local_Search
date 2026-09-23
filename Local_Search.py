@@ -2,8 +2,10 @@ import time
 from pathlib import Path
 import numpy as np
 
+from Greedy_Ratio import Greedy
 
-def Main(filename: str = "./videos_worth_spreading.in"):
+
+def Main(filename: str = "./instances/kittens.in"):
     candidates = [
         Path("instances") / filename,
         Path(filename),
@@ -227,18 +229,39 @@ def ReoptimizeCache(cache_id, data, structures, S_np, V, output):
     return max(total_delta, 0.0)
 
 
+def InitializeFromGreedy(data, structures, output, verbose=True):
+    """
+    Lance une première passe Greedy_Ratio et rejoue son placement des vidéos
+    dans les caches pour initialiser `structures` (best_latency_arr,
+    providers) et `output`, au lieu de partir de caches vides (LD partout).
+    """
+    if verbose:
+        print("Initialisation via une première passe Greedy_Ratio...")
+
+    greedy_result = Greedy(data)
+    for cache_id, videos in greedy_result["output"].items():
+        output[cache_id] = set(videos)
+        for video_id in videos:
+            AddVideo(video_id, cache_id, structures)
+
+    if verbose:
+        print(f"Greedy_Ratio : chrono = {greedy_result['chrono']:,.0f} ms, score = {greedy_result['score']}")
+
+
 def LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True):
     """
     à chaque round, on réoptimise chaque cache,
     un par un, en tenant compte de l'état réel (final) des autres caches.
     On s'arrête si le score n'augmente plus (convergence) ou si le budget
     de temps est dépassé.
+    La solution de départ est le résultat d'une première passe Greedy_Ratio.
     """
     V, C = data["V"], data["C"]
     S_np = np.array(data["S"], dtype=np.float64)
 
     structures = PrecomputeStructures(data)
     output = {c: set() for c in range(C)}
+    InitializeFromGreedy(data, structures, output, verbose=verbose)
 
     start = time.time()
     total_gain = 0.0
