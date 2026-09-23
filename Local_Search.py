@@ -57,10 +57,8 @@ def Main(filename: str = "./instances/kittens.in"):
                     if len(line) < 3:
                         raise ValueError("Ligne de requête incomplète.")
                     v, e, n = map(int, line)
-                    Requests.setdefault(e, []).append({
-                        "video_id": v,
-                        "num_requests": n
-                    })
+                    endpoint_requests = Requests.setdefault(e, {})
+                    endpoint_requests[v] = endpoint_requests.get(v, 0) + n
 
                 return {
                     "endpoints": endpoints,
@@ -87,13 +85,13 @@ def PrecomputeStructures(data):
     LD_arr = [0.0] * E
 
     for endpoint_id in range(E):
-        requests = data["requests"].get(endpoint_id, [])
+        requests = data["requests"].get(endpoint_id, {})
         LD = data["endpoints"][endpoint_id]["data_center_latency"]
         LD_arr[endpoint_id] = float(LD)
 
         if requests:
-            v_ids = np.fromiter((r["video_id"] for r in requests), dtype=np.int64, count=len(requests))
-            counts = np.fromiter((r["num_requests"] for r in requests), dtype=np.float64, count=len(requests))
+            v_ids = np.fromiter(requests.keys(), dtype=np.int64, count=len(requests))
+            counts = np.fromiter(requests.values(), dtype=np.float64, count=len(requests))
         else:
             v_ids = np.empty(0, dtype=np.int64)
             counts = np.empty(0, dtype=np.float64)
@@ -296,9 +294,7 @@ def FinalScore(data, output):
     for endpoint_id, requests in data["requests"].items():
         endpoint = endpoints_by_id[endpoint_id]
         LD = endpoint["data_center_latency"]
-        for req in requests:
-            video_id = req["video_id"]
-            num_requests = req["num_requests"]
+        for video_id, num_requests in requests.items():
             total_requests += num_requests
 
             best_latency = LD

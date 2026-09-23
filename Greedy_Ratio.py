@@ -60,10 +60,8 @@ def Main(filename: str = "./videos_worth_spreading.in"):
                     if len(line) < 3:
                         raise ValueError("Ligne de requête incomplète.")
                     v, e, n = map(int, line)
-                    Requests.setdefault(e, []).append({
-                        "video_id": v,
-                        "num_requests": n
-                    })
+                    endpoint_requests = Requests.setdefault(e, {})
+                    endpoint_requests[v] = endpoint_requests.get(v, 0) + n
 
                 return {
                     "endpoints": endpoints,
@@ -98,8 +96,8 @@ def BuildValueMatrix(data):
 
         LD = endpoint["data_center_latency"]
 
-        video_ids = np.fromiter((r["video_id"] for r in requests), dtype=np.int64, count=len(requests))
-        counts = np.fromiter((r["num_requests"] for r in requests), dtype=np.float64, count=len(requests))
+        video_ids = np.fromiter(requests.keys(), dtype=np.int64, count=len(requests))
+        counts = np.fromiter(requests.values(), dtype=np.float64, count=len(requests))
 
         cache_ids = np.fromiter((c for c, _l in cache_connections), dtype=np.int64, count=len(cache_connections))
         latencies = np.fromiter((l for _c, l in cache_connections), dtype=np.float64, count=len(cache_connections))
@@ -126,13 +124,13 @@ def PrecomputeEndpointArrays(data):
     best_latency_arr = [None] * E
 
     for endpoint_id in range(E):
-        requests = data["requests"].get(endpoint_id, [])
+        requests = data["requests"].get(endpoint_id, {})
         LD = data["endpoints"][endpoint_id]["data_center_latency"]
         if requests:
             # Id de chaque videos demand&es par l'endpoint
-            v_ids = np.fromiter((r["video_id"] for r in requests), dtype=np.int64, count=len(requests))
+            v_ids = np.fromiter(requests.keys(), dtype=np.int64, count=len(requests))
             # Nombre de requêtes associées à chaque vidéos
-            counts = np.fromiter((r["num_requests"] for r in requests), dtype=np.float64, count=len(requests))
+            counts = np.fromiter(requests.values(), dtype=np.float64, count=len(requests))
         else:
             v_ids = np.empty(0, dtype=np.int64)
             counts = np.empty(0, dtype=np.float64)
@@ -151,11 +149,11 @@ def Greedy(data):
     # Mise à plat des requêtes, en conservant l'endpoint d'origine
     Request_flat = []
     for endpoint_id, requests in data["requests"].items():
-        for req in requests:
+        for video_id, num_requests in requests.items():
             Request_flat.append({
-                "video_id": req["video_id"],
+                "video_id": video_id,
                 "endpoint_id": endpoint_id,
-                "num_requests": req["num_requests"],
+                "num_requests": num_requests,
             })
 
     # calcule d'une matrice d'importance des caches
