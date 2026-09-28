@@ -5,7 +5,7 @@ import numpy as np
 from Greedy_Ratio import Greedy
 
 
-def Main(filename: str = "./instances/kittens.in"):
+def Main(filename: str = "./instances/instance2.in"):
     candidates = [
         Path("instances") / filename,
         Path(filename),
@@ -187,7 +187,83 @@ def ComputeLocalCandidates(cache_id, structures, V):
     return candidate_videos, local_value[candidate_videos]
 
 
-def ReoptimizeCache(cache_id, data, structures, S_np, V, output):
+def ImproveByExchanges(chosen, candidate_videos, values, sizes, capacity, alpha=1.0):
+    """Improve a ratio-greedy cache with bounded 1-for-1 and 1-for-2 exchanges."""
+    if not chosen or candidate_videos.size == 0:
+        return chosen
+
+    candidate_sizes = sizes[candidate_videos]
+    ratios = values / np.power(candidate_sizes, alpha)
+    ratio_order = np.argsort(-ratios)
+
+    # Pair searches use a bounded pool; one-for-one replacements still scan all candidates.
+    pair_pool = np.unique(np.concatenate((
+        ratio_order[:32],
+        np.argsort(candidate_sizes)[:32],
+    )))
+
+    chosen_set = set(chosen)
+    used_capacity = sum(int(sizes[video_id]) for video_id in chosen_set)
+    original_chosen = list(chosen)
+
+    for removed_video in original_chosen:
+        if removed_video not in chosen_set:
+            continue
+
+        removed_index = np.searchsorted(candidate_videos, removed_video)
+        available = capacity - used_capacity + int(sizes[removed_video])
+        selected_ids = np.fromiter(chosen_set, dtype=np.int64, count=len(chosen_set))
+        unselected = ~np.isin(candidate_videos, selected_ids)
+        eligible = unselected & (candidate_sizes <= available)
+
+        best_value = 0.0
+        best_additions = []
+        eligible_indices = np.flatnonzero(eligible)
+        if eligible_indices.size:
+            best_index = eligible_indices[np.argmax(values[eligible_indices])]
+            best_value = float(values[best_index])
+            best_additions = [int(candidate_videos[best_index])]
+
+        pair_indices = pair_pool[~np.isin(candidate_videos[pair_pool], selected_ids)]
+        if pair_indices.size >= 2:
+            pair_sizes = candidate_sizes[pair_indices]
+            pair_values = values[pair_indices]
+            feasible_pairs = np.triu(
+                pair_sizes[:, None] + pair_sizes[None, :] <= available,
+                k=1,
+            )
+            if feasible_pairs.any():
+                pair_scores = pair_values[:, None] + pair_values[None, :]
+                pair_scores[~feasible_pairs] = -np.inf
+                first, second = np.unravel_index(np.argmax(pair_scores), pair_scores.shape)
+                pair_value = float(pair_scores[first, second])
+                if pair_value > best_value:
+                    best_value = pair_value
+                    best_additions = [
+                        int(candidate_videos[pair_indices[first]]),
+                        int(candidate_videos[pair_indices[second]]),
+                    ]
+
+        if best_value <= float(values[removed_index]) + 1e-9:
+            continue
+
+        chosen_set.remove(removed_video)
+        used_capacity -= int(sizes[removed_video])
+        for video_id in best_additions:
+            chosen_set.add(video_id)
+            used_capacity += int(sizes[video_id])
+
+        for candidate_index in ratio_order:
+            video_id = int(candidate_videos[candidate_index])
+            video_size = int(sizes[video_id])
+            if video_id not in chosen_set and video_size <= capacity - used_capacity:
+                chosen_set.add(video_id)
+                used_capacity += video_size
+
+    return list(chosen_set)
+
+
+def ReoptimizeCache(cache_id, data, structures, S_np, V, output, alpha=1.0):
     """
     Réoptimise ENTIÈREMENT le contenu d'un cache, en tenant compte de
     l'état ACTUEL (final) de tous les autres caches
@@ -203,7 +279,7 @@ def ReoptimizeCache(cache_id, data, structures, S_np, V, output):
     new_videos = []
     if candidate_videos.size > 0:
         sizes = S_np[candidate_videos]
-        ratios = values / sizes
+        ratios = values / np.power(sizes, alpha)
         order = np.argsort(-ratios)
         capacity = X
         for idx in order:
@@ -211,8 +287,18 @@ def ReoptimizeCache(cache_id, data, structures, S_np, V, output):
             size = data["S"][v]
             if size <= capacity:
                 capacity -= size
-                total_delta += AddVideo(v, cache_id, structures)
                 new_videos.append(v)
+
+        new_videos = ImproveByExchanges(
+            new_videos,
+            candidate_videos,
+            values,
+            S_np,
+            X,
+            alpha=alpha,
+        )
+        for v in new_videos:
+            total_delta += AddVideo(v, cache_id, structures)
 
     if total_delta < -1e-6:
         # Sécurité anti-régression : on annule et on restaure l'ancien contenu.
@@ -227,7 +313,7 @@ def ReoptimizeCache(cache_id, data, structures, S_np, V, output):
     return max(total_delta, 0.0)
 
 
-def InitializeFromGreedy(data, structures, output, verbose=True):
+def InitializeFromGreedy(data, structures, output, verbose=True, alpha=1.0):
     """
     Lance une première passe Greedy_Ratio et rejoue son placement des vidéos
     dans les caches pour initialiser `structures` (best_latency_arr,
@@ -236,7 +322,7 @@ def InitializeFromGreedy(data, structures, output, verbose=True):
     if verbose:
         print("Initialisation via une première passe Greedy_Ratio...")
 
-    greedy_result = Greedy(data)
+    greedy_result = Greedy(data, alpha=alpha)
     for cache_id, videos in greedy_result["output"].items():
         output[cache_id] = set(videos)
         for video_id in videos:
@@ -246,7 +332,7 @@ def InitializeFromGreedy(data, structures, output, verbose=True):
         print(f"Greedy_Ratio : chrono = {greedy_result['chrono']:,.0f} ms, score = {greedy_result['score']}")
 
 
-def LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True):
+def LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True, alpha=1.0):
     """
     à chaque round, on réoptimise chaque cache,
     un par un, en tenant compte de l'état réel (final) des autres caches.
@@ -254,12 +340,15 @@ def LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True):
     de temps est dépassé.
     La solution de départ est le résultat d'une première passe Greedy_Ratio.
     """
+    if not np.isfinite(alpha) or alpha < 0:
+        raise ValueError("alpha doit être un nombre fini positif ou nul.")
+
     V, C = data["V"], data["C"]
     S_np = np.array(data["S"], dtype=np.float64)
 
     structures = PrecomputeStructures(data)
     output = {c: set() for c in range(C)}
-    InitializeFromGreedy(data, structures, output, verbose=verbose)
+    InitializeFromGreedy(data, structures, output, verbose=verbose, alpha=alpha)
 
     start = time.time()
     total_gain = 0.0
@@ -267,7 +356,7 @@ def LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True):
     for round_idx in range(1, max_rounds + 1):
         round_gain = 0.0
         for cache_id in range(C):
-            round_gain += ReoptimizeCache(cache_id, data, structures, S_np, V, output)
+            round_gain += ReoptimizeCache(cache_id, data, structures, S_np, V, output, alpha=alpha)
 
             if time_budget_seconds is not None and (time.time() - start) > time_budget_seconds:
                 if verbose:
@@ -312,7 +401,7 @@ def FinalScore(data, output):
 if __name__ == "__main__":
     data = Main()
 
-    output = LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True)
+    output = LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True, alpha=1.0)
 
     output_lists = {
         cache_id: list(videos)

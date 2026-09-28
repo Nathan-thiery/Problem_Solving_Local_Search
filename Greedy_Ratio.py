@@ -141,7 +141,10 @@ def PrecomputeEndpointArrays(data):
     return video_ids_arr, counts_arr, best_latency_arr
 
 
-def Greedy(data):
+def Greedy(data, alpha=1.0):
+    if not np.isfinite(alpha) or alpha < 0:
+        raise ValueError("alpha doit être un nombre fini positif ou nul.")
+
     V, C, X = data["V"], data["C"], data["X"]
     S = data["S"]
     S_np = np.array(S, dtype=np.float64)
@@ -197,7 +200,7 @@ def Greedy(data):
         # par Mo de capacité consommée.
         values = local_value[candidate_videos]  # valeurs des vidéos de gain nn-nulles
         sizes = S_np[candidate_videos]          # taille des vidéos de gain nn-nulles
-        ratios = values / sizes
+        ratios = values / np.power(sizes, alpha)
         order = np.argsort(-ratios)
 
         capacity = X
