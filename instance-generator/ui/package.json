@@ -1,0 +1,32 @@
+{
+    "name": "instance-generator-ui",
+    "version": "1.0.0",
+    "description": "Generateur d'instances Streaming Videos",
+    "author": "Instance Generator",
+    "scripts": {
+        "start": "concurrently \"vite\" \"electron main.js\"",
+        "dist:win": "electron-builder --win nsis"
+    },
+    "dependencies": {
+        "@emotion/styled": "^11.14.1",
+        "@mui/icons-material": "^9.4.0",
+        "@mui/material": "^9.4.0",
+        "@mui/styled-engine": "^9.4.0",
+        "react": "^19.3.0",
+        "react-dom": "^19.3.0"
+    },
+    "devDependencies": {
+        "@vitejs/plugin-react": "^6.1.1",
+        "concurrently": "^10.0.5",
+        "electron": "^44.4.5",
+        "electron-builder": "^26.0.12",
+        "vite": "^8.3.1"
+    },
+    "build": {
+        "appId": "fr.instancegenerator.desktop",
+        "productName": "Instance Generator",
+        "files": ["main.js"],
+        "directories": { "output": "release" },
+        "win": { "target": "nsis" }
+    }
+}

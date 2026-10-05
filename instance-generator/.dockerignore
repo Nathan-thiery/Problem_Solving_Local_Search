@@ -1,0 +1,7 @@
+.git
+.venv
+__pycache__
+backend/__pycache__
+ui/node_modules
+ui/dist
+npm-debug.log
