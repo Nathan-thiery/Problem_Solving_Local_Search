@@ -1,0 +1,20 @@
+services:
+  instance-generator:
+    image: registry.example.com/instance-generator:1.0.0
+    ports:
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: ingress
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 1
+        order: start-first
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
