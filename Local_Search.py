@@ -73,6 +73,7 @@ def Main(filename = "./instances/instance2.in"):
                 print(SEP)
 
                 return {
+                    "name": path.stem,
                     "endpoints": endpoints,
                     "requests": Requests,
                     "V": V,
@@ -348,14 +349,25 @@ def InitializeFromGreedy(data, structures, output, verbose=True, alpha=1.0):
         print(f"[Init]   {nb_placements:,} placements vidéo/cache")
 
 
-def LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True, alpha=1.0):
+def LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True, alpha=1.0, trace=False):
     """
     à chaque round, on réoptimise chaque cache,
     un par un, en tenant compte de l'état réel (final) des autres caches.
     On s'arrête si le score n'augmente plus (convergence) ou si le budget
     de temps est dépassé.
     La solution de départ est le résultat d'une première passe Greedy_Ratio.
+    Si trace=True, les modifications nettes de chaque cache sont écrites
+    dans outputs/<instance>.trace (la solution initiale Greedy n'y figure pas).
     """
+    trace_lines = [] if trace else None
+    try:
+        return _LocalSearch(data, max_rounds, time_budget_seconds, verbose, alpha, trace_lines)
+    finally:
+        if trace:
+            WriteTrace(trace_lines, Path("outputs") / f"{data.get('name', 'solution')}.trace")
+
+
+def _LocalSearch(data, max_rounds, time_budget_seconds, verbose, alpha, trace_lines):
     if not np.isfinite(alpha) or alpha < 0:
         raise ValueError("alpha doit être un nombre fini positif ou nul.")
 
@@ -397,6 +409,19 @@ def LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True, alph
             if verbose and cache_id in checkpoints:
                 print(f"[LS] Round {round_idx:>2} | {checkpoints[cache_id]:>3}% "
                       f"| gain partiel = {round_gain:>14,.0f} ms | t = {time.time() - start:6.1f}s")
+        if trace_lines is not None:
+            trace_lines.append(f"# round {round_idx}")
+        for cache_id in range(C):
+            old_videos = set(output[cache_id]) if trace_lines is not None else None
+            round_gain += ReoptimizeCache(cache_id, data, structures, S_np, V, output, alpha=alpha)
+
+            if trace_lines is not None:
+                # Diff net : retraits d'abord, pour que la capacité reste valide au rejeu.
+                new_videos = output[cache_id]
+                for v in sorted(old_videos - new_videos):
+                    trace_lines.append(f"- {cache_id} {v}")
+                for v in sorted(new_videos - old_videos):
+                    trace_lines.append(f"+ {cache_id} {v}")
 
             if time_budget_seconds is not None and (time.time() - start) > time_budget_seconds:
                 if verbose:
@@ -459,13 +484,43 @@ if __name__ == "__main__":
         data = Main()
 
     output = LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True, alpha=1.0)
+def WriteOutput(output, out_path):
+    """Écrit la solution au format .out : nombre de caches utilisés, puis une ligne 'cache_id v1 v2 ...' par cache non vide."""
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
     output_lists = {
-        cache_id: list(videos)
+        cache_id: sorted(videos)
         for cache_id, videos in output.items()
         if videos
     }
 
+    with out_path.open("w", encoding="utf-8") as f:
+        f.write(f"{len(output_lists)}\n")
+        for c_id, videos in output_lists.items():
+            f.write(" ".join(map(str, (c_id, *videos))) + "\n")
+
+    print(f"Solution écrite dans : {out_path}")
+    return output_lists
+
+
+def WriteTrace(trace_lines, trace_path):
+    """Écrit la trace : '# round N' puis des lignes '+ cache video' / '- cache video'."""
+    trace_path = Path(trace_path)
+    trace_path.parent.mkdir(parents=True, exist_ok=True)
+    with trace_path.open("w", encoding="utf-8") as f:
+        for line in trace_lines:
+            f.write(line + "\n")
+    print(f"Trace écrite dans : {trace_path}")
+
+
+if __name__ == "__main__":
+    data = Main()
+
+    output = LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True, alpha=1.0, trace=True)
+
+    out_path = Path("outputs") / f"{data['name']}.out"
+    WriteOutput(output, out_path)
 
     chrono, score = FinalScore(data, output)
     print("[Résultat]")
