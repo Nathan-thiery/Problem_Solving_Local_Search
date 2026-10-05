@@ -10,7 +10,7 @@ SEP = "=" * 60
 SUB = "-" * 60
 
 
-def Main(filename = "./instances/instance2.in"):
+def Main(filename = "../instances/instance2.in"):
     candidates = [
         Path("instances") / filename,
         Path(filename),
