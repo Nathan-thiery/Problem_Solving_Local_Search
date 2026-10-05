@@ -10,9 +10,9 @@ SEP = "=" * 60
 SUB = "-" * 60
 
 
-def Main(filename = "../instances/instance2.in"):
+def Main(filename = "../inputs/instance2.in"):
     candidates = [
-        Path("instances") / filename,
+        Path("inputs") / filename,
         Path(filename),
     ]
 
@@ -400,20 +400,17 @@ def _LocalSearch(data, max_rounds, time_budget_seconds, verbose, alpha, trace_li
     for round_idx in range(1, max_rounds + 1):
         round_gain = 0.0
         improved_caches = 0
+
+        if trace_lines is not None:
+            trace_lines.append(f"# round {round_idx}")
+
         for cache_id in range(C):
+            old_videos = set(output[cache_id]) if trace_lines is not None else None
+
             cache_gain = ReoptimizeCache(cache_id, data, structures, S_np, V, output, alpha=alpha)
             round_gain += cache_gain
             if cache_gain > 1e-6:
                 improved_caches += 1
-
-            if verbose and cache_id in checkpoints:
-                print(f"[LS] Round {round_idx:>2} | {checkpoints[cache_id]:>3}% "
-                      f"| gain partiel = {round_gain:>14,.0f} ms | t = {time.time() - start:6.1f}s")
-        if trace_lines is not None:
-            trace_lines.append(f"# round {round_idx}")
-        for cache_id in range(C):
-            old_videos = set(output[cache_id]) if trace_lines is not None else None
-            round_gain += ReoptimizeCache(cache_id, data, structures, S_np, V, output, alpha=alpha)
 
             if trace_lines is not None:
                 # Diff net : retraits d'abord, pour que la capacité reste valide au rejeu.
@@ -422,6 +419,10 @@ def _LocalSearch(data, max_rounds, time_budget_seconds, verbose, alpha, trace_li
                     trace_lines.append(f"- {cache_id} {v}")
                 for v in sorted(new_videos - old_videos):
                     trace_lines.append(f"+ {cache_id} {v}")
+
+            if verbose and cache_id in checkpoints:
+                print(f"[LS] Round {round_idx:>2} | {checkpoints[cache_id]:>3}% "
+                      f"| gain partiel = {round_gain:>14,.0f} ms | t = {time.time() - start:6.1f}s")
 
             if time_budget_seconds is not None and (time.time() - start) > time_budget_seconds:
                 if verbose:
@@ -452,6 +453,7 @@ def _LocalSearch(data, max_rounds, time_budget_seconds, verbose, alpha, trace_li
 
     return output
 
+
 def FinalScore(data, output):
     endpoints_by_id = data["endpoints"]
     chrono = 0
@@ -473,7 +475,6 @@ def FinalScore(data, output):
 
     score = (chrono * 1000) // total_requests if total_requests > 0 else 0
     return chrono, score
-
 
 
 def WriteOutput(output, out_path):
@@ -508,7 +509,7 @@ def WriteTrace(trace_lines, trace_path):
 
 if __name__ == "__main__":
     t_global = time.time()
-    
+
     if len(sys.argv) > 1:
         data = Main(sys.argv[1])
     else:
@@ -517,11 +518,11 @@ if __name__ == "__main__":
     output = LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True, alpha=1.0, trace=True)
 
     out_path = Path("outputs") / f"{data['name']}.out"
-    WriteOutput(output, out_path)
+    output_lists = WriteOutput(output, out_path)
 
     chrono, score = FinalScore(data, output)
     print("[Résultat]")
-    print(f"   Caches utilisés         : {len(output):,}/{data['C']:,}")
+    print(f"   Caches utilisés         : {len(output_lists):,}/{data['C']:,}")
     print(f"   Chrono (gain total, ms) : {chrono:,}")
     print(f"   Score (gain moyen, µs)  : {score:,}")
     print(f"   Temps total             : {time.time() - t_global:.1f}s")
