@@ -475,15 +475,7 @@ def FinalScore(data, output):
     return chrono, score
 
 
-if __name__ == "__main__":
-    t_global = time.time()
 
-    if len(sys.argv) > 1:
-        data = Main(sys.argv[1])
-    else:
-        data = Main()
-
-    output = LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True, alpha=1.0)
 def WriteOutput(output, out_path):
     """Écrit la solution au format .out : nombre de caches utilisés, puis une ligne 'cache_id v1 v2 ...' par cache non vide."""
     out_path = Path(out_path)
@@ -515,7 +507,12 @@ def WriteTrace(trace_lines, trace_path):
 
 
 if __name__ == "__main__":
-    data = Main()
+    t_global = time.time()
+    
+    if len(sys.argv) > 1:
+        data = Main(sys.argv[1])
+    else:
+        data = Main()
 
     output = LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True, alpha=1.0, trace=True)
 
@@ -524,7 +521,7 @@ if __name__ == "__main__":
 
     chrono, score = FinalScore(data, output)
     print("[Résultat]")
-    print(f"   Caches utilisés         : {len(output_lists):,}/{data['C']:,}")
+    print(f"   Caches utilisés         : {len(output):,}/{data['C']:,}")
     print(f"   Chrono (gain total, ms) : {chrono:,}")
     print(f"   Score (gain moyen, µs)  : {score:,}")
     print(f"   Temps total             : {time.time() - t_global:.1f}s")
