@@ -1,11 +1,16 @@
 import time
 from pathlib import Path
 import numpy as np
+import sys
 
 from Greedy_Ratio import Greedy
 
 
-def Main(filename: str = "./instances/instance2.in"):
+SEP = "=" * 60
+SUB = "-" * 60
+
+
+def Main(filename = "./instances/instance2.in"):
     candidates = [
         Path("instances") / filename,
         Path(filename),
@@ -13,7 +18,8 @@ def Main(filename: str = "./instances/instance2.in"):
 
     for path in candidates:
         if path.exists():
-            print(f"Lecture du fichier : {path}")
+            print(SEP)
+            print(f" Lecture du fichier : {path}")
             with path.open("r", encoding="utf-8") as f:
                 first_line = f.readline().strip()
                 if not first_line:
@@ -59,6 +65,12 @@ def Main(filename: str = "./instances/instance2.in"):
                     v, e, n = map(int, line)
                     endpoint_requests = Requests.setdefault(e, {})
                     endpoint_requests[v] = endpoint_requests.get(v, 0) + n
+
+                print(f"   Vidéos    V = {V:>8,}")
+                print(f"   Endpoints E = {E:>8,}")
+                print(f"   Requêtes  R = {R:>8,}")
+                print(f"   Caches    C = {C:>8,}   (capacité X = {X:,} MB)")
+                print(SEP)
 
                 return {
                     "name": path.stem,
@@ -321,8 +333,9 @@ def InitializeFromGreedy(data, structures, output, verbose=True, alpha=1.0):
     providers) et `output`, au lieu de partir de caches vides (LD partout).
     """
     if verbose:
-        print("Initialisation via une première passe Greedy_Ratio...")
+        print("[Init] Première passe Greedy_Ratio...")
 
+    t0 = time.time()
     greedy_result = Greedy(data, alpha=alpha)
     for cache_id, videos in greedy_result["output"].items():
         output[cache_id] = set(videos)
@@ -330,7 +343,10 @@ def InitializeFromGreedy(data, structures, output, verbose=True, alpha=1.0):
             AddVideo(video_id, cache_id, structures)
 
     if verbose:
-        print(f"Greedy_Ratio : chrono = {greedy_result['chrono']:,.0f} ms, score = {greedy_result['score']}")
+        nb_placements = sum(len(v) for v in output.values())
+        print(f"[Init] Terminé en {time.time() - t0:.1f}s")
+        print(f"[Init]   chrono = {greedy_result['chrono']:,.0f} ms | score = {greedy_result['score']:,}")
+        print(f"[Init]   {nb_placements:,} placements vidéo/cache")
 
 
 def LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True, alpha=1.0, trace=False):
@@ -358,15 +374,41 @@ def _LocalSearch(data, max_rounds, time_budget_seconds, verbose, alpha, trace_li
     V, C = data["V"], data["C"]
     S_np = np.array(data["S"], dtype=np.float64)
 
+    if verbose:
+        print("[Prep] Précalcul des structures...")
+    t0 = time.time()
     structures = PrecomputeStructures(data)
+    if verbose:
+        print(f"[Prep] Terminé en {time.time() - t0:.1f}s")
+        print(SUB)
+
     output = {c: set() for c in range(C)}
     InitializeFromGreedy(data, structures, output, verbose=verbose, alpha=alpha)
+
+    if verbose:
+        print(SUB)
+        budget_str = f"{time_budget_seconds}s" if time_budget_seconds is not None else "illimité"
+        print(f"[LS] Recherche locale | max_rounds = {max_rounds} | budget = {budget_str} | alpha = {alpha}")
+        print(SUB)
+
+    # Points de suivi intra-round (25 %, 50 %, 75 %)
+    checkpoints = {max(1, (C * q) // 4) - 1: q * 25 for q in (1, 2, 3)} if C >= 8 else {}
 
     start = time.time()
     total_gain = 0.0
 
     for round_idx in range(1, max_rounds + 1):
         round_gain = 0.0
+        improved_caches = 0
+        for cache_id in range(C):
+            cache_gain = ReoptimizeCache(cache_id, data, structures, S_np, V, output, alpha=alpha)
+            round_gain += cache_gain
+            if cache_gain > 1e-6:
+                improved_caches += 1
+
+            if verbose and cache_id in checkpoints:
+                print(f"[LS] Round {round_idx:>2} | {checkpoints[cache_id]:>3}% "
+                      f"| gain partiel = {round_gain:>14,.0f} ms | t = {time.time() - start:6.1f}s")
         if trace_lines is not None:
             trace_lines.append(f"# round {round_idx}")
         for cache_id in range(C):
@@ -383,18 +425,30 @@ def _LocalSearch(data, max_rounds, time_budget_seconds, verbose, alpha, trace_li
 
             if time_budget_seconds is not None and (time.time() - start) > time_budget_seconds:
                 if verbose:
-                    print(f"Budget de temps atteint pendant le round {round_idx} (cache {cache_id}).")
+                    total_gain += round_gain
+                    print(f"[LS] Budget de temps atteint (round {round_idx}, cache {cache_id + 1}/{C}).")
+                    print(SUB)
+                    print(f"[LS] Bilan : {round_idx - 1} round(s) complet(s) "
+                          f"| gain total = {total_gain:,.0f} ms | t = {time.time() - start:.1f}s")
+                    print(SEP)
                 return output
 
         total_gain += round_gain
         if verbose:
             elapsed = time.time() - start
-            print(f"Round {round_idx}: gain = {round_gain:,.0f} ms cumulés  (t = {elapsed:.1f}s)")
+            print(f"[LS] Round {round_idx:>2} | 100% | gain round   = {round_gain:>14,.0f} ms "
+                  f"| caches améliorés = {improved_caches}/{C} | t = {elapsed:6.1f}s")
 
         if round_gain <= 1e-6:
             if verbose:
-                print("Convergence atteinte : plus aucune amélioration possible.")
+                print("[LS] Convergence atteinte : plus aucune amélioration possible.")
             break
+
+    if verbose:
+        print(SUB)
+        print(f"[LS] Bilan : {round_idx} round(s) | gain total = {total_gain:,.0f} ms "
+              f"| t = {time.time() - start:.1f}s")
+        print(SEP)
 
     return output
 
@@ -421,6 +475,15 @@ def FinalScore(data, output):
     return chrono, score
 
 
+if __name__ == "__main__":
+    t_global = time.time()
+
+    if len(sys.argv) > 1:
+        data = Main(sys.argv[1])
+    else:
+        data = Main()
+
+    output = LocalSearch(data, max_rounds=10, time_budget_seconds=120, verbose=True, alpha=1.0)
 def WriteOutput(output, out_path):
     """Écrit la solution au format .out : nombre de caches utilisés, puis une ligne 'cache_id v1 v2 ...' par cache non vide."""
     out_path = Path(out_path)
@@ -460,5 +523,9 @@ if __name__ == "__main__":
     WriteOutput(output, out_path)
 
     chrono, score = FinalScore(data, output)
-    print(f"Chrono (gain total, ms) : {chrono}")
-    print(f"Score (gain moyen, µs)  : {score}")
+    print("[Résultat]")
+    print(f"   Caches utilisés         : {len(output_lists):,}/{data['C']:,}")
+    print(f"   Chrono (gain total, ms) : {chrono:,}")
+    print(f"   Score (gain moyen, µs)  : {score:,}")
+    print(f"   Temps total             : {time.time() - t_global:.1f}s")
+    print(SEP)
