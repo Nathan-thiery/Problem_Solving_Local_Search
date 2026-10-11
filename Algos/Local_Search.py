@@ -8,7 +8,7 @@ from Greedy_Ratio import Greedy
 
 SEP = "=" * 60
 SUB = "-" * 60
-
+OUTPUTS_DIR = Path(__file__).resolve().parent.parent / "outputs"
 
 def Main(filename = "../inputs/instance2.in"):
     candidates = [
@@ -425,8 +425,8 @@ def _LocalSearch(data, max_rounds, time_budget_seconds, verbose, alpha, trace_li
                       f"| gain partiel = {round_gain:>14,.0f} ms | t = {time.time() - start:6.1f}s")
 
             if time_budget_seconds is not None and (time.time() - start) > time_budget_seconds:
+                total_gain += round_gain
                 if verbose:
-                    total_gain += round_gain
                     print(f"[LS] Budget de temps atteint (round {round_idx}, cache {cache_id + 1}/{C}).")
                     print(SUB)
                     print(f"[LS] Bilan : {round_idx - 1} round(s) complet(s) "
