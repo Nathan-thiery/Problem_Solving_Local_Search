@@ -1,0 +1,121 @@
+111 jobs a lancer sur 111
+OK  main greedy instance14 s0 p0.05 i1500 -> 57,197
+OK  main ls instance14 s0 p0.05 i1500 -> 55,248
+OK  main ls instance13 s0 p0.05 i1500 -> 5,050,394
+OK  main greedy instance13 s0 p0.05 i1500 -> 5,066,500
+OK  main dp instance14 s0 p0.05 i1500 -> 57,279
+OK  main dp instance14 s1 p0.05 i1500 -> 57,279
+OK  main dp instance14 s2 p0.05 i1500 -> 57,279
+OK  main greedy instance15 s0 p0.05 i1500 -> 222,004
+OK  main ls instance15 s0 p0.05 i1500 -> 222,111
+OK  main dp instance13 s0 p0.05 i1500 -> 5,066,500
+OK  main greedy instance11 s0 p0.05 i1500 -> 131,569
+OK  main ls instance11 s0 p0.05 i1500 -> 126,295
+OK  main dp instance13 s1 p0.05 i1500 -> 5,066,500
+OK  main dp instance13 s2 p0.05 i1500 -> 5,066,500
+OK  main dp instance15 s0 p0.05 i1500 -> 292,212
+OK  main dp instance15 s1 p0.05 i1500 -> 292,212
+OK  main dp instance15 s2 p0.05 i1500 -> 292,212
+OK  main dp instance11 s0 p0.05 i1500 -> 131,831
+OK  sens dp instance11 s0 p0.01 i1500 -> 131,831
+OK  sens dp instance11 s0 p0.05 i1500 -> 131,831
+OK  main dp instance11 s1 p0.05 i1500 -> 131,833
+OK  main dp instance11 s2 p0.05 i1500 -> 131,832
+OK  sens dp instance11 s0 p0.1 i1500 -> 131,831
+OK  sens dp instance11 s0 p0.2 i1500 -> 131,831
+OK  sens dp instance11 s0 p0.05 i300 -> 131,834
+OK  sens dp instance11 s0 p0.05 i5000 -> 131,831
+OK  sens dp instance11 s1 p0.01 i1500 -> 131,848
+OK  sens dp instance11 s1 p0.05 i1500 -> 131,833
+OK  main greedy instance08 s0 p0.05 i1500 -> 53,125
+OK  sens dp instance11 s1 p0.1 i1500 -> 131,833
+OK  main ls instance08 s0 p0.05 i1500 -> 52,567
+OK  sens dp instance11 s1 p0.2 i1500 -> 131,833
+OK  sens dp instance11 s1 p0.05 i300 -> 131,836
+OK  sens dp instance11 s1 p0.05 i5000 -> 131,833
+OK  sens dp instance08 s0 p0.01 i1500 -> 53,186
+OK  sens dp instance08 s0 p0.05 i1500 -> 53,186
+OK  sens dp instance08 s0 p0.1 i1500 -> 53,186
+OK  main dp instance08 s0 p0.05 i1500 -> 53,186
+OK  main dp instance08 s1 p0.05 i1500 -> 53,186
+OK  main dp instance08 s2 p0.05 i1500 -> 53,186
+OK  sens dp instance08 s0 p0.2 i1500 -> 53,186
+OK  sens dp instance08 s0 p0.05 i300 -> 53,186
+OK  sens dp instance08 s0 p0.05 i5000 -> 53,186
+OK  sens dp instance08 s1 p0.01 i1500 -> 53,186
+OK  sens dp instance08 s1 p0.05 i1500 -> 53,186
+OK  sens dp instance08 s1 p0.1 i1500 -> 53,186
+OK  main greedy instance10 s0 p0.05 i1500 -> 580,599
+OK  main ls instance10 s0 p0.05 i1500 -> 543,191
+OK  sens dp instance08 s1 p0.2 i1500 -> 53,186
+OK  main greedy instance12 s0 p0.05 i1500 -> 328,677
+OK  sens dp instance08 s1 p0.05 i300 -> 53,186
+OK  sens dp instance08 s1 p0.05 i5000 -> 53,186
+OK  main ls instance12 s0 p0.05 i1500 -> 326,755
+OK  main dp instance10 s0 p0.05 i1500 -> 581,088
+OK  main dp instance10 s1 p0.05 i1500 -> 581,094
+OK  main greedy instance05 s0 p0.05 i1500 -> 5,251,267
+OK  main ls instance05 s0 p0.05 i1500 -> 5,243,824
+OK  main dp instance10 s2 p0.05 i1500 -> 581,088
+OK  main dp instance12 s0 p0.05 i1500 -> 329,716
+OK  main greedy instance03 s0 p0.05 i1500 -> 2,550,000
+OK  main ls instance03 s0 p0.05 i1500 -> 2,550,000
+OK  main dp instance12 s1 p0.05 i1500 -> 329,719
+OK  main dp instance12 s2 p0.05 i1500 -> 329,716
+OK  main dp instance05 s0 p0.05 i1500 -> 5,268,011
+OK  main dp instance05 s1 p0.05 i1500 -> 5,264,247
+OK  main dp instance05 s2 p0.05 i1500 -> 5,262,510
+OK  main dp instance03 s0 p0.05 i1500 -> 2,550,000
+OK  main dp instance03 s1 p0.05 i1500 -> 2,550,000
+OK  sens dp instance03 s0 p0.01 i1500 -> 2,550,000
+OK  sens dp instance03 s0 p0.05 i1500 -> 2,550,000
+OK  main dp instance03 s2 p0.05 i1500 -> 2,550,000
+OK  sens dp instance03 s0 p0.1 i1500 -> 2,550,000
+OK  sens dp instance03 s0 p0.2 i1500 -> 2,550,000
+OK  sens dp instance03 s0 p0.05 i300 -> 2,550,000
+OK  sens dp instance03 s0 p0.05 i5000 -> 2,550,000
+OK  sens dp instance03 s1 p0.01 i1500 -> 2,550,000
+OK  main greedy instance07 s0 p0.05 i1500 -> 1,094,813
+OK  main ls instance07 s0 p0.05 i1500 -> 1,094,633
+OK  sens dp instance03 s1 p0.05 i1500 -> 2,550,000
+OK  sens dp instance03 s1 p0.1 i1500 -> 2,550,000
+OK  sens dp instance03 s1 p0.2 i1500 -> 2,550,000
+OK  sens dp instance03 s1 p0.05 i300 -> 2,550,000
+OK  main greedy instance09 s0 p0.05 i1500 -> 563,835
+OK  main ls instance09 s0 p0.05 i1500 -> 1,022,070
+OK  sens dp instance03 s1 p0.05 i5000 -> 2,550,000
+OK  main dp instance07 s0 p0.05 i1500 -> 1,094,813
+OK  main dp instance07 s1 p0.05 i1500 -> 1,094,813
+OK  main greedy instance06 s0 p0.05 i1500 -> 1,542,411
+OK  main ls instance06 s0 p0.05 i1500 -> 1,542,411
+ERR main dp instance06 s0: IndexError('list index out of range') em_Solving_Local_Search\Algos_V2\Local_Search_DP.py", line 25, in Knapsack01
+    keep = np.zeros((n, capacity + 1), dtype=bool)          # keep[i, cap] = video i prise ?
+numpy._core._exceptions._ArrayMemoryError: Unable to allocate 36.9 GiB for an array with shape (66, 600000001) and data type bool
+
+ERR main dp instance06 s1: IndexError('list index out of range') em_Solving_Local_Search\Algos_V2\Local_Search_DP.py", line 25, in Knapsack01
+    keep = np.zeros((n, capacity + 1), dtype=bool)          # keep[i, cap] = video i prise ?
+numpy._core._exceptions._ArrayMemoryError: Unable to allocate 36.9 GiB for an array with shape (66, 600000001) and data type bool
+
+OK  main greedy instance02 s0 p0.05 i1500 -> 968,172
+OK  main ls instance02 s0 p0.05 i1500 -> 955,844
+ERR main dp instance06 s2: IndexError('list index out of range') s\Projet\Problem_Solving_Local_Search\Algos_V2\Local_Search_DP.py", line 26, in Knapsack01
+    cand = np.empty(capacity + 1, dtype=np.float64)         # tampon reutilise
+numpy._core._exceptions._ArrayMemoryError: Unable to allocate 4.47 GiB for an array with shape (600000001,) and data type float64
+
+OK  main dp instance07 s2 p0.05 i1500 -> 1,094,813
+OK  main dp instance09 s0 p0.05 i1500 -> 1,100,741
+OK  main dp instance09 s1 p0.05 i1500 -> 1,100,741
+OK  main greedy instance04 s0 p0.05 i1500 -> 1,902,183
+OK  main ls instance04 s0 p0.05 i1500 -> 1,906,354
+OK  main dp instance09 s2 p0.05 i1500 -> 1,100,741
+OK  main dp instance02 s0 p0.05 i1500 -> 986,110
+OK  main greedy instance01 s0 p0.05 i1500 -> 646,788
+OK  main dp instance02 s1 p0.05 i1500 -> 985,600
+OK  main ls instance01 s0 p0.05 i1500 -> 649,290
+OK  main dp instance02 s2 p0.05 i1500 -> 986,110
+OK  main dp instance04 s0 p0.05 i1500 -> 1,958,178
+OK  main dp instance04 s1 p0.05 i1500 -> 1,958,220
+OK  main dp instance04 s2 p0.05 i1500 -> 1,958,227
+OK  main dp instance01 s0 p0.05 i1500 -> 1,005,593
+OK  main dp instance01 s1 p0.05 i1500 -> 1,005,593
+OK  main dp instance01 s2 p0.05 i1500 -> 1,005,593
